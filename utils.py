@@ -4,6 +4,20 @@ import numpy as np
 from PIL import Image
 from typing import List, Dict, Tuple, Any
 from tqdm import tqdm
+import fetch.transforms as FT
+import monai.transforms as MT
+import torchvision.transforms as TT
+
+img_size=320
+topilimage = TT.ToPILImage()
+tx = MT.Compose([
+    FT.load_image,
+    MT.ScaleIntensityRangePercentiles(lower=0.5, upper=99.5, b_min=0, b_max=1, clip=True, relative=False),
+    MT.CenterSpatialCrop(roi_size=(img_size, img_size)),
+    MT.Resize((img_size, img_size)),
+    MT.ToTensor(track_meta=False),
+    lambda x: [topilimage(slc).convert("RGB") for slc in x],
+])
 
 def load_image_paths(directory: str, suffix: str = None) -> List[str]:
     """
@@ -51,7 +65,12 @@ def extract_features_batch(img_paths: List[str], device: torch.device,
         RuntimeError: If feature extraction fails for any reason.
     """
     try:
-        images = [Image.open(path).convert("RGB") for path in img_paths]
+        images = []
+        for path in img_paths:
+            if path.endswith(('jpg', 'png', 'jpeg')):
+                images.append(Image.open(path).convert("RGB"))
+            else:
+                images.extend(tx(path))
     except Exception as e:
         raise RuntimeError(f"Failed to open images: {e}")
 
@@ -96,7 +115,7 @@ def process_features(directory: str, models: List[Tuple[str, Any, Any]], name: s
     Raises:
         RuntimeError: If feature processing fails for any reason.
     """
-    output_dir = os.path.join("./embeddings/", save_embedding_to)
+    output_dir = os.path.join("./", save_embedding_to)
     os.makedirs(output_dir, exist_ok=True)
 
     img_files = load_image_paths(directory)
