@@ -14,6 +14,7 @@ topilimage = TT.ToPILImage()
 tx = MT.Compose([
     FT.load_image,
     base_transforms,
+    # MT.Lambda(lambda x: x.rot90(k=1, dims=[-2,-1]).flip(dims=[-1])),
     MT.ScaleIntensityRangePercentiles(lower=0.5, upper=99.5, b_min=0, b_max=1, clip=True, relative=False),
     # MT.CenterSpatialCrop(roi_size=(img_size, img_size)),
     MT.Resize((img_size, img_size)),
