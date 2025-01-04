@@ -5,6 +5,7 @@ from PIL import Image
 from typing import List, Dict, Tuple, Any
 from tqdm import tqdm
 import fetch.transforms as FT
+from fetch.oai import base_transforms
 import monai.transforms as MT
 import torchvision.transforms as TT
 
@@ -12,8 +13,9 @@ img_size=320
 topilimage = TT.ToPILImage()
 tx = MT.Compose([
     FT.load_image,
+    base_transforms,
     MT.ScaleIntensityRangePercentiles(lower=0.5, upper=99.5, b_min=0, b_max=1, clip=True, relative=False),
-    MT.CenterSpatialCrop(roi_size=(img_size, img_size)),
+    # MT.CenterSpatialCrop(roi_size=(img_size, img_size)),
     MT.Resize((img_size, img_size)),
     MT.ToTensor(track_meta=False),
     lambda x: [topilimage(slc).convert("RGB") for slc in x],
@@ -73,7 +75,7 @@ def extract_features_batch(img_paths: List[str], device: torch.device,
                 images.extend(tx(path))
     except Exception as e:
         raise RuntimeError(f"Failed to open images: {e}")
-
+    # return images
     all_features = {}
 
     # Process images once for all models
