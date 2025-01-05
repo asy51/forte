@@ -196,7 +196,6 @@ def main():
 
     id_features = process_image_features(args.id_images_directories, args.id_images_names, models, args)
     ood_features = process_image_features(args.ood_images_directories, args.ood_images_names, models, args, is_id=False)
-
     all_results = []
     for seed in tqdm(range(args.num_seeds), desc="Running evaluations across seeds"):
         np.random.seed(seed)

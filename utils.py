@@ -5,21 +5,21 @@ from PIL import Image
 from typing import List, Dict, Tuple, Any
 from tqdm import tqdm
 import fetch.transforms as FT
-from fetch.oai import base_transforms
+# from fetch.oai import base_transforms
 import monai.transforms as MT
 import torchvision.transforms as TT
+from IPython import embed
 
 img_size=320
 topilimage = TT.ToPILImage()
 tx = MT.Compose([
     FT.load_image,
-    base_transforms,
     # MT.Lambda(lambda x: x.rot90(k=1, dims=[-2,-1]).flip(dims=[-1])),
     MT.ScaleIntensityRangePercentiles(lower=0.5, upper=99.5, b_min=0, b_max=1, clip=True, relative=False),
     # MT.CenterSpatialCrop(roi_size=(img_size, img_size)),
     MT.Resize((img_size, img_size)),
     MT.ToTensor(track_meta=False),
-    lambda x: [topilimage(slc).convert("RGB") for slc in x],
+    lambda x: {f'slc{slc_ndx:03d}': topilimage(slc).convert("RGB") for slc_ndx, slc in enumerate(x)},
 ])
 
 def load_image_paths(directory: str, suffix: str = None) -> List[str]:
@@ -73,9 +73,19 @@ def extract_features_batch(img_paths: List[str], device: torch.device,
             if path.endswith(('jpg', 'png', 'jpeg')):
                 images.append(Image.open(path).convert("RGB"))
             else:
-                images.extend(tx(path))
+                images.append({path: tx(path)})
+
     except Exception as e:
         raise RuntimeError(f"Failed to open images: {e}")
+    
+    flattened_images = dict()
+    for vol in images:
+        for path, slices in vol.items():
+            for slc_ndx, slice in slices.items():
+                flattened_images[f'{path.split("/")[-1]}_{slc_ndx}'] = slice
+
+    keys = sorted(flattened_images.keys())
+    images = [flattened_images[key] for key in keys]
     # return images
     all_features = {}
 
@@ -92,8 +102,7 @@ def extract_features_batch(img_paths: List[str], device: torch.device,
                     features = model(**inputs).last_hidden_state[:, 0, :]
                 else:
                     raise ValueError(f"Unsupported model: {model_name}")
-
-            all_features[model_name] = features  # Keep features on GPU
+            all_features[model_name] = {keys[ndx]:feature for ndx, feature in enumerate(features)}  # Keep features on GPU
         except Exception as e:
             raise RuntimeError(f"Feature extraction failed for model {model_name}: {e}")
 
@@ -132,7 +141,7 @@ def process_features(directory: str, models: List[Tuple[str, Any, Any]], name: s
             with np.load(embedding_filename, mmap_mode='r') as data:
                 all_features[model_name] = data['features']
         else:
-            all_features[model_name] = []
+            all_features[model_name] = dict()
             models_to_process.append(model_name)
 
     if models_to_process:
@@ -140,21 +149,21 @@ def process_features(directory: str, models: List[Tuple[str, Any, Any]], name: s
             try:
                 batch = img_files[i:i+batch_size]
                 features = extract_features_batch(batch, device, models)
-
                 for model_name, model_features in features.items():
                     if model_name in models_to_process:
-                        all_features[model_name].append(model_features.cpu().numpy())
+                        all_features[model_name].update({k:v.cpu().numpy() for k,v in model_features.items()})
             except Exception as e:
                 print(f"Error processing batch {i//batch_size}: {e}")
                 continue
 
         for model_name in models_to_process:
             try:
-                features_combined = np.concatenate(all_features[model_name], axis=0)
+                embed()
+                # features_combined = np.concatenate(all_features[model_name], axis=0)
                 embedding_filename = os.path.join(output_dir, f"{name}_{model_name}_features.npz")
                 print(f"Saving features to {embedding_filename}")
-                np.savez_compressed(embedding_filename, features=features_combined)
-                all_features[model_name] = features_combined
+                np.savez_compressed(embedding_filename, **all_features[model_name])
+                all_features[model_name] = all_features[model_name]
             except Exception as e:
                 raise RuntimeError(f"Failed to save features for model {model_name}: {e}")
 
