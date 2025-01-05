@@ -5,6 +5,7 @@ from sklearn.model_selection import train_test_split
 from transformers import CLIPModel, CLIPProcessor, ViTMSNModel, AutoFeatureExtractor, AutoModel, AutoImageProcessor
 import utils, baselines, prdc, prdc_per_point, eval
 from tqdm import tqdm
+from IPython import embed
 
 def parse_args():
     """
@@ -73,7 +74,7 @@ def process_image_features(directories, names, models, args, is_id=True):
     Returns:
         dict: Dictionary of processed features for each model.
     """
-    features = {name: [] for name, _, _ in models}
+    features = {name: dict() for name, _, _ in models}
     image_type = "in-distribution" if is_id else "out-of-distribution"
     
     for directory, name in tqdm(zip(directories, names), total=len(directories), desc=f"Processing {image_type} images"):
@@ -83,11 +84,9 @@ def process_image_features(directories, names, models, args, is_id=True):
         for key, feature in features_batch.items():
             if args.print_shapes:
                 print(f"Shape for {key} in {directory} is {feature.shape}")
-            features[key].append(feature)
-    
-    for model_name in features:
-        features[model_name] = np.concatenate(features[model_name], axis=0)
-    
+            features[key].update(feature)
+    # for model_name in features:
+        # features[model_name] = np.concatenate(features[model_name], axis=0)
     return features
 
 def run_baseline_evaluations(id_features, ood_features, models, seed):

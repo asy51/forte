@@ -158,12 +158,10 @@ def process_features(directory: str, models: List[Tuple[str, Any, Any]], name: s
 
         for model_name in models_to_process:
             try:
-                embed()
                 # features_combined = np.concatenate(all_features[model_name], axis=0)
                 embedding_filename = os.path.join(output_dir, f"{name}_{model_name}_features.npz")
                 print(f"Saving features to {embedding_filename}")
                 np.savez_compressed(embedding_filename, **all_features[model_name])
-                all_features[model_name] = all_features[model_name]
             except Exception as e:
                 raise RuntimeError(f"Failed to save features for model {model_name}: {e}")
 
