@@ -12,9 +12,19 @@ from IPython import embed
 
 img_size=320
 topilimage = TT.ToPILImage()
-tx = MT.Compose([
+oai_tx = MT.Compose([
     FT.load_image,
     # MT.Lambda(lambda x: x.rot90(k=1, dims=[-2,-1]).flip(dims=[-1])),
+    MT.ScaleIntensityRangePercentiles(lower=0.5, upper=99.5, b_min=0, b_max=1, clip=True, relative=False),
+    # MT.CenterSpatialCrop(roi_size=(img_size, img_size)),
+    MT.Resize((img_size, img_size)),
+    MT.ToTensor(track_meta=False),
+    lambda x: {f'slc{slc_ndx:03d}': topilimage(slc).convert("RGB") for slc_ndx, slc in enumerate(x)},
+])
+mooncomet_tx = MT.Compose([
+    FT.load_nifti,
+    MT.ToTensor(track_meta=False),
+    MT.Lambda(lambda x: x.rot90(k=-1, dims=[-2,-1]).flip(dims=[-1])),
     MT.ScaleIntensityRangePercentiles(lower=0.5, upper=99.5, b_min=0, b_max=1, clip=True, relative=False),
     # MT.CenterSpatialCrop(roi_size=(img_size, img_size)),
     MT.Resize((img_size, img_size)),
@@ -73,7 +83,7 @@ def extract_features_batch(img_paths: List[str], device: torch.device,
             if path.endswith(('jpg', 'png', 'jpeg')):
                 images.append(Image.open(path).convert("RGB"))
             else:
-                images.append({path: tx(path)})
+                images.append({path: mooncomet_tx(path)})
 
     except Exception as e:
         raise RuntimeError(f"Failed to open images: {e}")
