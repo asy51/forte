@@ -47,6 +47,7 @@ def load_image_paths(directory: str, suffix: str = None) -> List[str]:
         FileNotFoundError: If the specified directory does not exist.
     """
     if not os.path.exists(directory):
+        return []
         raise FileNotFoundError(f"Directory '{directory}' does not exist.")
 
     image_paths = [
@@ -119,7 +120,7 @@ def extract_features_batch(img_paths: List[str], device: torch.device,
     return all_features
 
 def process_features(directory: str, models: List[Tuple[str, Any, Any]], name: str, 
-                     save_embedding_to: str, batch_size: int, device: torch.device) -> Dict[str, np.ndarray]:
+                     save_embedding_to: str, batch_size: int, device: torch.device, keys_contain='ccf') -> Dict[str, np.ndarray]:
     """
     Process features for all images in a directory using multiple models.
 
@@ -148,8 +149,8 @@ def process_features(directory: str, models: List[Tuple[str, Any, Any]], name: s
         embedding_filename = os.path.join(output_dir, f"{name}_{model_name}_features.npz")
         if os.path.exists(embedding_filename):
             print(f"Loading pre-computed features from {embedding_filename}")
-            with np.load(embedding_filename, mmap_mode='r') as data:
-                all_features[model_name] = data['features']
+            data = np.load(embedding_filename, mmap_mode='r')
+            all_features[model_name] = data
         else:
             all_features[model_name] = dict()
             models_to_process.append(model_name)

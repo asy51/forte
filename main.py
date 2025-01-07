@@ -26,6 +26,9 @@ def parse_args():
     parser.add_argument("--no_run_baselines", action='store_false', dest='run_baselines', help='Explicitly do not run baselines.')
     parser.add_argument("--print_shapes", action='store_true', help='Whether to print shapes of vectors for sanity checks.')
     parser.add_argument("--num_seeds", type=int, default=5, help='Number of random seeds to use for evaluation')
+    parser.add_argument("--id_filter", nargs='+', default=[''])
+    parser.add_argument("--ood_filter", nargs='+', default=[''])
+
     return parser.parse_args()
 
 def init_models(device):
@@ -74,20 +77,22 @@ def process_image_features(directories, names, models, args, is_id=True):
     Returns:
         dict: Dictionary of processed features for each model.
     """
-    features = {name: dict() for name, _, _ in models}
+    # features = {name: dict() for name, _, _ in models}
     image_type = "in-distribution" if is_id else "out-of-distribution"
-    
+
+    assert len(directories) == 1
     for directory, name in tqdm(zip(directories, names), total=len(directories), desc=f"Processing {image_type} images"):
-        features_batch = utils.process_features(directory, models, name, args.embedding_dir, args.batch_size, args.device)
+        model_features = utils.process_features(directory, models, name, args.embedding_dir, args.batch_size, args.device)
         print(f"Processed {image_type} images in {directory} categorized as {name}")
         
-        for key, feature in features_batch.items():
+        for model_name, model_feature in model_features.items():
             if args.print_shapes:
-                print(f"Shape for {key} in {directory} is {feature.shape}")
-            features[key].update(feature)
+                print(f"Shape for {model_name} in {directory} is {model_feature.shape}")
+        return model_features
     # for model_name in features:
-        # features[model_name] = np.concatenate(features[model_name], axis=0)
-    return features
+    #     features[model_name].update(model_feature)
+    #     # features[model_name] = np.concatenate(features[model_name], axis=0)
+    # return features
 
 def run_baseline_evaluations(id_features, ood_features, models, seed):
     """
@@ -120,7 +125,7 @@ def run_baseline_evaluations(id_features, ood_features, models, seed):
     return baseline_results, stats_results
 
 def compute_prdc_features(id_train, id_held_out, ood_features, seed):
-    """
+    """np
     Compute PRDC features for in-distribution and out-of-distribution images.
 
     Args:
@@ -154,7 +159,7 @@ def compute_prdc_features(id_train, id_held_out, ood_features, seed):
             np.concatenate(X_id_held_out_prdc, axis=1),
             np.concatenate(X_ood_prdc, axis=1))
 
-def run_evaluation(id_features, ood_features, models, args, seed):
+def run_evaluation(id_features, ood_features, models, args, seed, id_filter, ood_filter):
     """
     Run a single evaluation with a given random seed.
 
@@ -171,6 +176,24 @@ def run_evaluation(id_features, ood_features, models, args, seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
 
+    print(f"id_features with len {len(id_features['clip'].keys())}")
+    if id_filter:
+        id_features_filtered = dict()
+        for model_name in id_features.keys():
+            id_features_filtered[model_name] = np.stack([v for k,v in id_features[model_name].items() if any(desired_key in k for desired_key in id_filter)])
+            print(f"id_features[{model_name}] filtered with shape {id_features_filtered[model_name].shape}")
+        id_features = id_features_filtered
+    else:
+        id_features = {model_name: np.stack([v for v in id_features[model_name].values()])}
+    print(f"ood_features with len {len(ood_features['clip'].keys())}")
+    if ood_filter:
+        ood_features_filtered = dict()
+        for model_name in ood_features.keys():
+            ood_features_filtered[model_name] = np.stack([v for k,v in ood_features[model_name].items() if any(desired_key in k for desired_key in ood_filter)])
+            print(f"ood_features[{model_name}] filtered with shape {ood_features_filtered[model_name].shape}")
+        ood_features = ood_features_filtered
+    else:
+        ood_features = {model_name: np.stack([v for v in ood_features[model_name].values()])}
     id_train, id_held_out = {}, {}
     for model_name, id_features_set in id_features.items():
         id_train[model_name], id_held_out[model_name] = train_test_split(id_features_set, test_size=0.33, random_state=seed)
@@ -209,7 +232,7 @@ def main():
             for model, stats in stats_results.items():
                 print(f"Statistical Test Results for {model} (seed {seed}): {stats}")
         print("Running Evaluations")
-        results = run_evaluation(id_features, ood_features, models, args, seed)
+        results = run_evaluation(id_features, ood_features, models, args, seed, id_filter=args.id_filter, ood_filter=args.ood_filter)
         all_results.append(results)
 
     # Calculate mean and standard deviation of results across seeds
