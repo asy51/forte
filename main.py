@@ -85,9 +85,9 @@ def process_image_features(directories, names, models, args, is_id=True):
         model_features = utils.process_features(directory, models, name, args.embedding_dir, args.batch_size, args.device)
         print(f"Processed {image_type} images in {directory} categorized as {name}")
         
-        for model_name, model_feature in model_features.items():
-            if args.print_shapes:
-                print(f"Shape for {model_name} in {directory} is {model_feature.shape}")
+        # for model_name, model_feature in model_features.items():
+        #     if args.print_shapes:
+        #         print(f"Shape for {model_name} in {directory} is {model_feature.shape}")
         return model_features
     # for model_name in features:
     #     features[model_name].update(model_feature)
