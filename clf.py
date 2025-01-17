@@ -20,14 +20,8 @@ def calculate_fpr_at_tpr(y_true, y_scores, target_tpr=0.95):
     fpr, tpr, _ = roc_curve(y_true, y_scores)
     return fpr[next(i for i, x in enumerate(tpr) if x >= target_tpr)]
 
-def sample_gaussian(n=1_000, mean=[0,0], std=[1,1]):
-    mean = np.array(mean)
-    std = np.array(std)
-    samples = np.random.randn(n, len(mean)) * std + mean
-    return samples
-
 class Classifier:
-    def __init__(self, model_name='svm', **kwargs):
+    def __init__(self, model_name='gmm', **kwargs):
         self.model_name = model_name
         if model_name == 'svm':
             kwargs.setdefault('nu', 0.2)
